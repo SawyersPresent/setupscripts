@@ -7,7 +7,7 @@
 import argparse
 import struct
 import base64
-
+import sys
 from impacket import version
 from impacket.krb5.ccache import CCache
 from impacket.krb5 import constants
@@ -20,7 +20,28 @@ def is_kirbi( data: bytes ) -> bool:
     fd = struct.unpack( ">B" , data[0:1] )[0]
     return fd == 0x76
 
+def show_help():
+    print("k2c - Convert between Kerberos ticket formats")
+    print()
+    print("Usage:")
+    print("  k2c -i <ticket_file>")
+    print("  echo '<base64_ticket>' | k2c")
+    print("  k2c --help")
+    print()
+    print("Supported formats:")
+    print("  • .kirbi files (binary)")
+    print("  • .ccache files")
+    print("  • Base64 encoded tickets")
+    print()
+    print("Examples:")
+    print("  k2c -i ticket.kirbi")
+    print("  echo 'doIE+jCCBPag...' | k2c")
+
 def main():
+    if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
+        show_help()
+        return
+    
     print(version.BANNER)
 
     parser = argparse.ArgumentParser(add_help=True, description="convert between your favorite ticket formats, usage: https://i.gyazo.com/12b8a68068d24ec87b1221a047c2b4c4.png")

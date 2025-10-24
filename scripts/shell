@@ -1,9 +1,25 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# filepath: shell
 
 import sys
 import netifaces as ni
 import regex
+
+def show_help():
+    print("shell - Generate reverse shell payloads")
+    print()
+    print("Usage:")
+    print("  shell <IP|Interface> <PORT>")
+    print("  shell --help")
+    print()
+    print("Examples:")
+    print("  shell 192.168.1.10 4444")
+    print("  shell eth0 4444")
+    print("  shell tun0 9001")
+    print()
+    print("Output:")
+    print("  Creates shell.sh with various reverse shell payloads")
 
 def is_ip(ip):
     if regex.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip):
@@ -44,9 +60,9 @@ def generate_shells(ip, port):
     return shells
 
 def main():
-    if len(sys.argv) != 3:
-        print(f"Usage: {sys.argv[0]} <IP/Interface> <PORT>")
-        sys.exit(1)
+    if len(sys.argv) != 3 or sys.argv[1] in ['-h', '--help']:
+        show_help()
+        sys.exit(0)
 
     if is_ip(sys.argv[1]):
         ip = sys.argv[1]

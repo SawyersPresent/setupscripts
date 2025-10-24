@@ -5,8 +5,8 @@ scripts=(
     "nxc2imp"
     "parselocker"
     "rc4"
-    "nxc_gen_user"
-    "nxc2all"
+    "nxc_users"
+    "certiparse"
 )
 
 local_bin="/usr/local/bin"

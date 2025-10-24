@@ -1,6 +1,8 @@
 #!/usr/bin/python3
+# filepath: certiparse
 
-import json, sys
+import json
+import sys
 
 # how wide to allow certain columns before truncating
 TRUNCATE = {
@@ -105,8 +107,28 @@ def main(json_path):
     for r in rows:
         print(fmt.format(*(r[h] for h in headers)))
 
+def show_help():
+    print("certiparse - Parse Certipy JSON output")
+    print()
+    print("Usage:")
+    print("  certiparse <certipy_output.json>")
+    print("  certiparse --help")
+    print()
+    print("Description:")
+    print("  Parses Certipy JSON output and displays certificate templates")
+    print("  with enrollment rights and vulnerabilities in table format")
+    print()
+    print("Example:")
+    print("  certipy find -target dc.test.local -output json")
+    print("  certiparse certipy_output.json")
+
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print(f"Usage: {sys.argv[0]} <offsec_enabled_Certipy.json>")
+    if len(sys.argv) != 2 or sys.argv[1] in ['-h', '--help']:
+        show_help()
+        sys.exit(0)
+    
+    try:
+        main(sys.argv[1])
+    except Exception as e:
+        print(f"Error: {e}")
         sys.exit(1)
-    main(sys.argv[1])
