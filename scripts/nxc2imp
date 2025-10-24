@@ -3,7 +3,6 @@
 
 import os
 import sys
-import argparse
 import readline
 
 DEBUG = False
@@ -30,6 +29,14 @@ def show_help():
     print("Output:")
     print("  psexec.py 'test.local'/'admin':'Pass123'@dc.test.local")
     print("  psexec.py 'test.local'/'admin'@dc.test.local -hashes ':abc123...'")
+
+def is_nxc_command(raw: str) -> bool:
+    """Check if input looks like a valid nxc command"""
+    if not raw.strip():
+        return False
+    return (raw.strip().startswith('nxc ') and 
+            '-u' in raw and 
+            ('-p' in raw or '-H' in raw))
 
 def get_username(raw: str) -> str:
     return raw.split('-u')[1].split('-')[0].strip().replace('"', '').replace("'", '')
@@ -74,8 +81,9 @@ if __name__ == "__main__":
     try:
         raw = input()
         
-        assert '-u' in raw, "Error: Missing -u parameter"
-        assert '-p' in raw or '-H' in raw, "Error: Missing -p or -H parameter"
+        if not is_nxc_command(raw):
+            show_help()
+            sys.exit(0)
         
         if is_ip(raw.split(" ")[2]):
             print("Warning: Using IP address instead of FQDN")
@@ -87,6 +95,7 @@ if __name__ == "__main__":
             cmd = HashCmd(raw)
             print(f"=> {SUFFIX} '{cmd.domain}'/'{cmd.username}'@{cmd.computer} -hashes ':{cmd.hash}'")
             
-    except (AssertionError, IndexError) as e:
-        print(f"{e}")
-        print("Use --help for usage information")
+    except (EOFError, KeyboardInterrupt):
+        show_help()
+    except Exception:
+        show_help()

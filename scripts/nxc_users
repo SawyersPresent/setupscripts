@@ -16,15 +16,41 @@ def show_help():
     print("Description:")
     print("  Filters NetExec --users output to extract clean usernames")
 
+def is_nxc_users_output(raw: str) -> bool:
+    """Check if input looks like nxc --users output"""
+    if not raw.strip():
+        return False
+    lines = raw.splitlines()
+    # Look for typical nxc output patterns
+    has_smb_pattern = any('SMB' in line for line in lines[:5])
+    has_user_pattern = any(len(line.split()) >= 5 for line in lines)
+    return has_smb_pattern or has_user_pattern or len(lines) > 3
+
 def go():
-    raw = sys.stdin.read().strip()
-    for line in raw.splitlines():
-        if any(x in line for x in ['[*]', '[+]', '-Username-']):
-            continue
-        try:
-            print(line.split()[4])
-        except:
-            pass
+    try:
+        raw = sys.stdin.read().strip()
+        
+        if not is_nxc_users_output(raw):
+            show_help()
+            return
+        
+        found_users = False
+        for line in raw.splitlines():
+            if any(x in line for x in ['[*]', '[+]', '-Username-']):
+                continue
+            try:
+                username = line.split()[4]
+                if username:
+                    print(username)
+                    found_users = True
+            except:
+                pass
+        
+        if not found_users:
+            print("No usernames found in input", file=sys.stderr)
+            
+    except (EOFError, KeyboardInterrupt):
+        show_help()
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:

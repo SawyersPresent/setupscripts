@@ -1,30 +1,59 @@
 #!/usr/bin/env python3
-# -*- coding:utf-8 -*-
-
-# https://github.com/fortra/impacket/blob/master/examples/ticketConverter.py
-# https://github.com/fortra/impacket/blob/master/examples/describeTicket.py
+# filepath: k2c
 
 import argparse
 import struct
 import base64
 import sys
+import os
 from impacket import version
 from impacket.krb5.ccache import CCache
 from impacket.krb5 import constants
 
-def is_ccache( data: bytes ) -> bool:
-    fd = struct.unpack( ">B" , data[0:1] )[0]
+def is_ccache(data: bytes) -> bool:
+    if len(data) < 1:
+        return False
+    fd = struct.unpack(">B", data[0:1])[0]
     return fd == 0x5
 
-def is_kirbi( data: bytes ) -> bool:
-    fd = struct.unpack( ">B" , data[0:1] )[0]
+def is_kirbi(data: bytes) -> bool:
+    if len(data) < 1:
+        return False
+    fd = struct.unpack(">B", data[0:1])[0]
     return fd == 0x76
+
+def is_base64_ticket(data: str) -> bool:
+    """Check if string looks like a base64 encoded ticket"""
+    if not data.strip():
+        return False
+    try:
+        # Check if it starts with common base64 ticket prefixes
+        if data.startswith(('doI', 'MIIE', 'MII')):
+            # Try to decode to verify it's valid base64
+            base64.b64decode(data)
+            return True
+    except:
+        pass
+    return False
+
+def is_ticket_file(filepath: str) -> bool:
+    """Check if file looks like a ticket file"""
+    if not os.path.exists(filepath):
+        return False
+    
+    try:
+        with open(filepath, 'rb') as f:
+            data = f.read(10)  # Read first few bytes
+            return is_ccache(data) or is_kirbi(data)
+    except:
+        return False
 
 def show_help():
     print("k2c - Convert between Kerberos ticket formats")
     print()
     print("Usage:")
     print("  k2c -i <ticket_file>")
+    print("  k2c <ticket_file>")
     print("  echo '<base64_ticket>' | k2c")
     print("  k2c --help")
     print()
@@ -34,74 +63,91 @@ def show_help():
     print("  • Base64 encoded tickets")
     print()
     print("Examples:")
-    print("  k2c -i ticket.kirbi")
+    print("  k2c ticket.kirbi")
+    print("  k2c -i ticket.ccache")
     print("  echo 'doIE+jCCBPag...' | k2c")
 
 def main():
+    # Handle help first
     if len(sys.argv) > 1 and sys.argv[1] in ['-h', '--help']:
         show_help()
         return
     
     print(version.BANNER)
 
-    parser = argparse.ArgumentParser(add_help=True, description="convert between your favorite ticket formats, usage: https://i.gyazo.com/12b8a68068d24ec87b1221a047c2b4c4.png")
-    parser.add_argument(
-        "--input", "-i", 
-        action="store", 
-        help="Input file", 
-        required=False
-    )
-
-    Raw      = ""
+    Raw = ""
     Filetype = ""
+    input_file = None
 
-    args = parser.parse_args()
-    if args.input is None:
-        Raw = input().strip().encode()
-    else:
-        with open( args.input, 'rb' ) as f:
-            Raw = f.read().strip()
-
-    if Raw.startswith( b"doI" ):
-        Filetype = "b64kirbi"
+    # Check if there's a file argument
+    if len(sys.argv) > 1:
+        if sys.argv[1] == '-i' and len(sys.argv) > 2:
+            input_file = sys.argv[2]
+        elif not sys.argv[1].startswith('-'):
+            # Assume it's a file if it doesn't start with -
+            input_file = sys.argv[1]
     
-    if is_ccache( Raw ):
-        Filetype = "ccache"
-
-    if is_kirbi( Raw ):
-        Filetype = "kirbi"
-
-    
-    match Filetype:
-        case "ccache":
-            ccache = CCache.loadFile( args.input )
-            kirbi  = ccache.toKRBCRED()
-            print( base64.b64encode( kirbi ).decode() )
+    if input_file:
+        if not is_ticket_file(input_file):
+            show_help()
+            return
         
-        case _:
-            assert Filetype == "kirbi" or Filetype == "b64kirbi", "unknown ticket type"
-            
+        with open(input_file, 'rb') as f:
+            Raw = f.read().strip()
+    else:
+        # Try to read from stdin
+        try:
+            stdin_input = input().strip()
+            if not is_base64_ticket(stdin_input):
+                show_help()
+                return
+            Raw = stdin_input.encode()
+        except (EOFError, KeyboardInterrupt):
+            show_help()
+            return
+
+    if Raw.startswith(b"doI"):
+        Filetype = "b64kirbi"
+    elif is_ccache(Raw):
+        Filetype = "ccache"
+    elif is_kirbi(Raw):
+        Filetype = "kirbi"
+    else:
+        show_help()
+        return
+
+    try:
+        if Filetype == "ccache":
+            ccache = CCache.loadFile(input_file)
+            kirbi = ccache.toKRBCRED()
+            print(base64.b64encode(kirbi).decode())
+        else:
             ccache = CCache()
             if Filetype == "kirbi":
-                ccache.fromKRBCRED( Raw )
+                ccache.fromKRBCRED(Raw)
             elif Filetype == "b64kirbi":
-                kirbi = base64.b64decode( Raw )
-                ccache.fromKRBCRED( kirbi )
+                kirbi = base64.b64decode(Raw)
+                ccache.fromKRBCRED(kirbi)
 
-            if len( ccache.credentials ) > 1:
-                print( f"more than one credential found, returning first one" )
+            if len(ccache.credentials) > 1:
+                print(f"more than one credential found, returning first one")
 
-            principal = ccache.credentials[ 0 ][ 'client' ].prettyPrint().split( b'@' )[ 0 ].decode( 'utf-8' )
-            spn       = ccache.credentials[ 0 ][ 'server' ].prettyPrint().split( b'@' )[ 0 ].decode( 'utf-8' )
-            flags     = []
+            principal = ccache.credentials[0]['client'].prettyPrint().split(b'@')[0].decode('utf-8')
+            spn = ccache.credentials[0]['server'].prettyPrint().split(b'@')[0].decode('utf-8')
+            flags = []
             for k in constants.TicketFlags:
                 if ((ccache.credentials[0]['tktflags'] >> (31 - k.value)) & 1) == 1:
                     flags.append(constants.TicketFlags(k.value).name)
-            
-            print( f"[*] {principal} -> {spn} [ {', '.join(flags)} ]" )
-            with open( f"{ principal }@{ spn.replace( '/', '_' )     }.ccache", 'wb' ) as f:
-                f.write( ccache.getData() )
-            print( f"[+] export KRB5CCNAME='{ principal }@{ spn.replace( '/', '_' )     }.ccache' && nxc smb ... --use-kcache" )
+
+            print(f"[*] {principal} -> {spn} [ {', '.join(flags)} ]")
+            output_file = f"{principal}@{spn.replace('/', '_')}.ccache"
+            with open(output_file, 'wb') as f:
+                f.write(ccache.getData())
+            print(f"[+] export KRB5CCNAME='{output_file}' && nxc smb ... --use-kcache")
+    
+    except Exception as e:
+        print(f"Error processing ticket: {e}")
+        show_help()
 
 if __name__ == '__main__':
     main()
