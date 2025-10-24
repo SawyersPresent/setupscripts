@@ -1,0 +1,20 @@
+#!/usr/bin/env python3
+import sys
+
+"""
+nxc smb dc01.reflection.vl -u 'Rhys.Garner' -p 'knh1gJ8Xmeq+uP' --users | tee raw.txt
+cat raw.txt | nxc_gen_user > users.txt
+"""
+
+def go():
+    raw = sys.stdin.read().strip()
+    for line in raw.splitlines():
+        if any(x in line for x in ['[*]', '[+]', '-Username-']):
+            continue
+        try:
+            print(line.split()[4])
+        except:
+            pass
+
+if __name__ == "__main__":
+    go()

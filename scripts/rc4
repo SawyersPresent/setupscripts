@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+
+"""
+└─$ echo 'test' | rc4                                                                                              
+0cb6948805f797bf2a82807973b89537
+"""
+
+import hashlib
+import binascii
+
+def ntlm(s: str) -> str:
+    return hashlib.new('md4', s.encode('utf-16le')).digest()
+
+if __name__ == "__main__":
+    pw = input()
+    print(binascii.hexlify(ntlm(pw)).decode())
